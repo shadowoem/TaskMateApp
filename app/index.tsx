@@ -1,10 +1,9 @@
 // app/index.tsx
-import { HomeScreenNavigationProp } from "@/types/navigation";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { ChecklistModal } from "../components/ChecklistModal";
+import { Header } from "../components/Header"; // Импортируем новый компонент
 import { supabase } from "../lib/supabase";
 
 type Checklist = {
@@ -24,14 +24,27 @@ type Checklist = {
 };
 
 export default function HomeScreen() {
-  const navigation = useNavigation<HomeScreenNavigationProp>();
+  const navigation = useNavigation();
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
-
-  const userId = "93630a4e-6fe1-4006-bf02-c41c2a719f6d";
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+      } else {
+        navigation.navigate("auth");
+      }
+      setLoading(false);
+    };
+
+    fetchUser();
     fetchChecklists();
   }, []);
 
@@ -47,25 +60,24 @@ export default function HomeScreen() {
       checklist.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#237AE6" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate("Home")}>
-          <Text style={styles.headerTitle}>TaskMate</Text>
-        </TouchableOpacity>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.iconButton}>
-            <MaterialIcons name="more-vert" size={24} color="#237AE6" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <MaterialIcons name="person" size={24} color="#237AE6" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* Используем новый компонент Header */}
+      <Header
+        onHomePress={() => navigation.navigate("index")}
+        onProfilePress={() => navigation.navigate("profile", { userId })}
+        userId={userId}
+      />
 
       <View style={styles.gradientBackground}>
-        {/* Content Container */}
         <View style={styles.contentContainer}>
           <View style={styles.searchRow}>
             <TextInput
@@ -92,7 +104,7 @@ export default function HomeScreen() {
                 key={item.id}
                 style={styles.card}
                 onPress={() =>
-                  navigation.navigate("Checklist", { id: item.id })
+                  navigation.navigate("checklist", { id: item.id })
                 }
               >
                 <View style={styles.cardContent}>
@@ -125,40 +137,16 @@ export default function HomeScreen() {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onSave={fetchChecklists}
-        userId={userId} // Передаём полученный ID
+        userId={userId}
       />
     </View>
   );
 }
 
-// Стили остаются без изменений
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    paddingTop: 50,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    zIndex: 2,
-  },
-  headerTitle: {
-    color: "#237AE6",
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  headerIcons: {
-    flexDirection: "row",
-    gap: 15,
-  },
-  iconButton: {
-    padding: 5,
   },
   gradientBackground: {
     flex: 1,
@@ -237,5 +225,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
 });
